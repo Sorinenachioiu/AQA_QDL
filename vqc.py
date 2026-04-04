@@ -67,14 +67,14 @@ class VariationalQuantumClassifier:
         @qml.qnode(self.dev, interface="autograd")
         def qnode(x, params):
             self._circuit(x, params)
-            # Measure expectation of Z on the first qubit to get a value in [-1, 1]
-            return qml.expval(qml.PauliZ(0))
+            return [qml.expval(qml.PauliZ(i)) for i in range(self.config.n_qubits)]
         
         return qnode
     
     def predict_proba_single(self, x: np.ndarray, params: np.ndarray) -> np.ndarray:
-        measurement = self.qnode(x, params)
-        prob_class_0 = (1 + measurement) / 2
+        measurements = self.qnode(x, params)
+        avg_measurement = sum(measurements) / len(measurements)
+        prob_class_0 = (1 + avg_measurement) / 2
         prob_class_1 = 1 - prob_class_0
         
         return np.array([prob_class_0, prob_class_1])
