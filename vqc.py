@@ -45,7 +45,7 @@ class VariationalQuantumClassifier:
             requires_grad=True,
         )
     
-    # Define variational layer (RY and RZ rotations + CNOT entanglement)
+    # Variational layer (RY and RZ rotations + CNOT entanglement)
     def _variational_layer(self, params_layer: np.ndarray):
         for q in range(self.config.n_qubits):
             qml.RY(params_layer[q, 0], wires=q)
@@ -55,7 +55,7 @@ class VariationalQuantumClassifier:
             qml.CNOT(wires=[q, q + 1])
         qml.CNOT(wires=[self.config.n_qubits - 1, 0])
     
-    # Define the full circuit with amplitude embedding and variational layers
+    # Full circuit with amplitude embedding and variational layers
     def _circuit(self, x: np.ndarray, params: np.ndarray):
         qml.AmplitudeEmbedding(x, wires=range(self.config.n_qubits), normalize=True)
         
