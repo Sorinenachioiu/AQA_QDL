@@ -15,9 +15,6 @@ from sklearn.utils import resample
 
 RANDOM_STATE = 42
 
-
-# ==================== LOADERS ====================
-
 def load_kdd99(percent10: bool = True) -> pd.DataFrame:
     bunch = fetch_kddcup99(
         percent10=percent10,
@@ -41,22 +38,14 @@ def load_cic_iot23(path: str | Path) -> pd.DataFrame:
     path = Path(path)
 
     if not path.exists():
-        raise ValueError(f"Path does not exist: {path}")
+        raise ValueError(f"Path not found: {path}")
 
     if path.is_file():
         return pd.read_csv(path)
 
-    if path.is_dir():
-        files = sorted(path.glob("Merged*.csv"))
-        if not files:
-            raise ValueError(f"No files matching 'Merged*.csv' found in folder: {path}")
-        dfs = [pd.read_csv(f) for f in files]
-        return pd.concat(dfs, ignore_index=True)
-
-    raise ValueError(f"Unsupported path: {path}")
+    raise ValueError(f"Smth went wrong")
 
 
-# ==================== HELPERS ====================
 
 def take_subset(X: np.ndarray, y: np.ndarray, n_samples: int = 2000):
     if len(X) <= n_samples:
@@ -75,10 +64,6 @@ def _balance_binary_training_set(
     train_df["label"] = np.asarray(y_train)
 
     class_counts = train_df["label"].value_counts()
-    if len(class_counts) != 2:
-        raise ValueError(
-            f"Expected binary labels after mapping, got classes: {class_counts.index.tolist()}"
-        )
 
     majority_class = class_counts.idxmax()
     minority_class = class_counts.idxmin()
@@ -114,11 +99,6 @@ def preprocess_tabular_dataset(
 ) -> dict:
     df = df.copy()
 
-    if label_col not in df.columns:
-        raise ValueError(
-            f"Label column '{label_col}' not found. Available columns: {list(df.columns)}"
-        )
-
     if drop_cols is not None:
         existing_drop_cols = [c for c in drop_cols if c in df.columns and c != label_col]
         df = df.drop(columns=existing_drop_cols)
@@ -137,16 +117,11 @@ def preprocess_tabular_dataset(
 
     X = pd.get_dummies(X, columns=categorical_cols, drop_first=False)
     X = X.apply(pd.to_numeric, errors="coerce")
-
-    non_finite_before = ~np.isfinite(X.to_numpy(dtype=np.float64, copy=False))
-    if non_finite_before.any():
-        print("Found inf/-inf or invalid numeric values.")
-
     X = X.replace([np.inf, -np.inf], np.nan)
 
     all_nan_cols = X.columns[X.isna().all()].tolist()
     if all_nan_cols:
-        print("Dropping all-NaN columns:", all_nan_cols)
+        print("Dropping NaN columns:", all_nan_cols)
         X = X.drop(columns=all_nan_cols)
 
     X = X.fillna(0)
@@ -154,7 +129,7 @@ def preprocess_tabular_dataset(
     arr = X.to_numpy(dtype=np.float64, copy=False)
     if not np.isfinite(arr).all():
         bad_cols = X.columns[~np.isfinite(arr).all(axis=0)].tolist()
-        raise ValueError(f"Data still contains non-finite values after cleaning. Bad columns: {bad_cols}")
+        raise ValueError(f"Bad columns: {bad_cols}")
 
     encoded_dim = X.shape[1]
 
@@ -204,8 +179,6 @@ def preprocess_tabular_dataset(
     }
 
 
-# ==================== DATASET-SPECIFIC PREPROCESSORS ====================
-
 def preprocess_kdd99(
     percent10: bool = True,
     n_components: int = 4,
@@ -253,8 +226,6 @@ def preprocess_cic_iot23(
     )
 
 
-# ==================== TIMED WRAPPERS ====================
-
 def timed_preprocess(
     percent10: bool = True,
     n_components: int = 4,
@@ -293,8 +264,6 @@ def timed_preprocess_cic_iot23(
     return result
 
 
-# ==================== PLOTS ====================
-
 def plot_dimensionality_summary(
     original_dim: int,
     encoded_dim: int,
@@ -312,15 +281,15 @@ def plot_dimensionality_summary(
     plt.show()
 
 
-def plot_explained_variance(pca: PCA):
+def plot_explained_variance(pca: PCA, dataset = ""):
     evr = pca.explained_variance_ratio_
     cumulative = np.cumsum(evr)
 
     plt.figure(figsize=(8, 5))
     plt.plot(range(1, len(evr) + 1), cumulative, marker="o")
-    plt.xlabel("Number of PCA components")
+    plt.xlabel("Number of PCA components") 
     plt.ylabel("Cumulative explained variance")
-    plt.title("PCA explained variance")
+    plt.title(f"PCA explained variance - {dataset}")
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.show()
@@ -333,9 +302,6 @@ def plot_pca_scatter(
     title: str = "Projected onto first 2 PCA components",
 ):
     X_plot, y_plot = take_subset(X_pca, y, n_samples=max_points)
-
-    if X_plot.shape[1] < 2:
-        raise ValueError("Need at least 2 PCA components to make a scatter plot.")
 
     plt.figure(figsize=(8, 6))
     for label, name in [(0, "normal"), (1, "attack")]:
@@ -355,8 +321,6 @@ def plot_pca_scatter(
     plt.tight_layout()
     plt.show()
 
-
-# ==================== UMAP ====================
 
 def compute_umap_embedding(
     X: np.ndarray,

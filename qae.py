@@ -43,24 +43,6 @@ class QAEConfig:
 
 
 class QuantumAutoencoder:
-    # def __init__(self, config: QAEConfig):
-    #     self.config = config
-    #     np.random.seed(config.seed)
-
-    #     # Device for normal encoding / latent extraction
-    #     self.dev = qml.device(config.device_name, wires=config.n_qubits)
-
-    #     # Device for SWAP-test loss
-    #     self.dev_swap = qml.device(
-    #         config.device_name,
-    #         wires=config.total_swap_wires
-    #     )
-
-    #     (
-    #         self.trash_probs_qnode,
-    #         self.latent_qnode,
-    #         self.swap_test_prob_qnode,
-    #     ) = self._build_qnodes()
     def __init__(self, config: QAEConfig, backend=None):
         self.config = config
         self.backend = backend
@@ -155,7 +137,7 @@ class QuantumAutoencoder:
             qml.AngleEmbedding(x, wires=range(cfg.n_qubits), rotation="Y")
             self._encoder_block(params)
 
-            # Reference register B' is left at |00...0> by default
+            # Reference register B' = |00> 
 
             # SWAP test between trash B and reference B'
             anc = cfg.ancilla_wire
@@ -170,50 +152,21 @@ class QuantumAutoencoder:
 
         return trash_probs_qnode, latent_qnode, swap_test_prob_qnode
 
-    def _sample_fidelity_proxy(self, x: np.ndarray, params: np.ndarray) -> float:
-        """
-        Return a fidelity-like quantity C2.
-
-        If using SWAP test:
-            P(ancilla=0) = (1 + overlap)/2
-            overlap = 2*P0 - 1
-
-        Since the reference is |00...0>, overlap here is the
-        trash/reference fidelity estimate.
-        """
-        if self.config.use_swap_test_loss:
-            probs = self.swap_test_prob_qnode(x, params)
-            p0 = probs[0]
-            fidelity = 2.0 * p0 - 1.0
-            fidelity = np.clip(fidelity, 0.0, 1.0)
-            return fidelity
-        else:
-            # old simpler proxy
-            probs = self.trash_probs_qnode(x, params)
-            return probs[0]
+    def _sample_fidelity(self, x: np.ndarray, params: np.ndarray) -> float:
+        probs = self.swap_test_prob_qnode(x, params)
+        p0 = probs[0]
+        fidelity = 2.0 * p0 - 1.0
+        fidelity = np.clip(fidelity, 0.0, 1.0)
+        return fidelity
 
     def loss(self, params: np.ndarray, X_batch: np.ndarray) -> float:
-        """
-        Paper-inspired reduced cost:
-            maximize trash/reference fidelity C2
-
-        We minimize either:
-            1 - C2
-        or
-            log10(1 - C2 + eps)
-
-        Romero et al. minimize log10(1 - C2) for stability.
-        """
         fidelities = []
         for x in X_batch:
-            fidelities.append(self._sample_fidelity_proxy(x, params))
+            fidelities.append(self._sample_fidelity(x, params))
 
         c2 = np.mean(np.array(fidelities))
 
-        if self.config.use_log_cost:
-            return np.log10(1.0 - c2 + self.config.eps)
-        else:
-            return 1.0 - c2
+        return np.log10(1.0 - c2 + self.config.eps)
 
     def train(
         self,

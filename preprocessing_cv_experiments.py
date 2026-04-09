@@ -36,17 +36,14 @@ def load_kdd99(percent10: bool = True) -> pd.DataFrame:
 
 def load_cic_iot23(path: str | Path) -> pd.DataFrame:
     path = Path(path)
+
     if not path.exists():
-        raise ValueError(f"Path does not exist: {path}")
+        raise ValueError(f"Path not found: {path}")
+
     if path.is_file():
-        return pd.read_csv(path, low_memory=False)
-    if path.is_dir():
-        files = sorted(path.glob("Merged*.csv"))
-        if not files:
-            raise ValueError(f"No files matching 'Merged*.csv' found in folder: {path}")
-        dfs = [pd.read_csv(f, low_memory=False) for f in files]
-        return pd.concat(dfs, ignore_index=True)
-    raise ValueError(f"Unsupported path: {path}")
+        return pd.read_csv(path)
+
+    raise ValueError(f"Smth went wrong")
 
 
 def kdd99_binary_label_map(s: pd.Series) -> pd.Series:
@@ -106,8 +103,6 @@ def _balance_binary_training_set(
     train_df = X_train.copy()
     train_df["__label__"] = np.asarray(y_train)
     class_counts = train_df["__label__"].value_counts()
-    if len(class_counts) != 2:
-        raise ValueError(f"Expected binary labels, got {class_counts.to_dict()}")
 
     maj = class_counts.idxmax()
     mino = class_counts.idxmin()
@@ -190,7 +185,7 @@ class FoldPreprocessor:
         std = X.std(axis=0, ddof=0)
         self.valid_columns_ = std[std > 0].index.tolist()
         if not self.valid_columns_:
-            raise ValueError("Data has only const values")
+            raise ValueError("Only const values")
         X = X[self.valid_columns_]
 
         self.encoded_dim_ = X.shape[1]
